@@ -3,8 +3,10 @@ package v1
 
 import (
 	"douyin/pkg/utils/jwt"
+	"douyin/pkg/utils/response"
 	"douyin/service"
 	"douyin/types"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"net/http"
@@ -30,25 +32,25 @@ func (c *CheckoutController) CheckoutOrder(ctx *gin.Context) {
 	// 验证JWT token
 	userID, err := jwt.ValidateJWT(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "未授权"})
+		_ = ctx.Error(errors.New("未授权"))
 		return
 	}
 
 	// 修改处：使用 types.CreateOrderReq 代替 types.CheckoutReq
 	var req types.CreateOrderReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 进行结算
 	transactionID, err := c.service.CheckoutOrder(userID, &req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "结算时出错"})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"transaction_id": transactionID})
+	ctx.JSON(http.StatusOK, response.Success(gin.H{"transaction_id": transactionID}))
 }
 
 // CheckoutOrderHandler

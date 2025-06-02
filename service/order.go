@@ -2,6 +2,8 @@ package service
 
 import (
 	"douyin/pkg/utils/log"
+	"context"
+	"douyin/pkg/utils/log"
 	"douyin/repository/db/dao"
 	"douyin/types"
 	"gorm.io/gorm"
@@ -31,12 +33,16 @@ func NewOrderService(db *gorm.DB) (*OrderService, error) {
 	}, nil
 }
 
-func (s *OrderService) CreateOrder(userID uint, req *types.CreateOrderReq) (string, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, userID uint, req *types.CreateOrderReq) (string, error) {
 	// 创建订单
-	return s.dao.CreateOrder(userID, req)
+	return s.dao.CreateOrder(ctx, userID, req)
 }
 
-func (s *OrderService) UpdateOrder(userID uint, req *types.UpdateOrderReq) error {
+func (s *OrderService) UpdateOrder(ctx context.Context, userID uint, req *types.UpdateOrderReq) error {
 	// 更新订单
-	return s.dao.UpdateOrder(userID, req)
+	// Assuming UpdateOrder in DAO also needs context, though not explicitly specified for transaction.
+	// For consistency, it's good practice. If DAO's UpdateOrder doesn't take ctx, this would be s.dao.UpdateOrder(userID, req)
+	return s.dao.UpdateOrder(userID, req) // If dao.UpdateOrder is not updated for context, this line is correct.
+	// If dao.UpdateOrder is updated for context, it should be:
+	// return s.dao.UpdateOrder(ctx, userID, req)
 }

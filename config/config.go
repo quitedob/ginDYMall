@@ -157,6 +157,15 @@ func InitConfig() error {
 		return fmt.Errorf("反序列化配置失败: %v", err)
 	}
 
+	// Override JWT secret if environment variable is set
+	if envSecret := os.Getenv("JWT_SECRET"); envSecret != "" {
+		if GlobalConfig.EncryptSecret == nil {
+			GlobalConfig.EncryptSecret = &EncryptSecret{} // Ensure EncryptSecret is not nil
+		}
+		GlobalConfig.EncryptSecret.JwtSecret = envSecret
+		fmt.Println("JWT Secret overridden by environment variable.")
+	}
+
 	fmt.Println("配置文件加载成功！")
 	return nil
 }

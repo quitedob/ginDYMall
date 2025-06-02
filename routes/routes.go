@@ -9,12 +9,9 @@ import (
 )
 
 // NewRouter 根据传入的数据库实例 db 初始化并返回一个 Gin 引擎实例
-func NewRouter(db *gorm.DB) *gin.Engine {
-	// 初始化 Gin 路由引擎
-	r := gin.Default()
-
+func NewRouter(engine *gin.Engine, db *gorm.DB) {
 	// 定义 API V1 版本分组
-	apiV1 := r.Group("/api/v1")
+	apiV1 := engine.Group("/api/v1")
 	{
 		// 注册无需登录的接口
 		apiV1.POST("/user/register", v1.UserRegisterHandler()) // 用户注册接口
@@ -53,7 +50,4 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			authGroup.POST("cart/add", cartController.AddItem)       // 添加或更新购物车商品接口
 		}
 	}
-
-	// 返回配置好的路由引擎
-	return r
 }
