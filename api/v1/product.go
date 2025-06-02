@@ -65,7 +65,7 @@ func UpdateProduct(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
-
+	
 	userID, err := ctl.GetUserID(c)
 	if err != nil {
 		_ = c.Error(err)

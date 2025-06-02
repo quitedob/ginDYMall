@@ -108,7 +108,7 @@ func (dao *CartDao) AddItem(ctx context.Context, userID, productID uint, quantit
 		}
 	} else {
 		// 如果购物车已存在该商品，则进行数量累加
-		// Note: Stock was already deducted for the new quantity. If the item exists,
+		// Note: Stock was already deducted for the new quantity. If the item exists, 
 		// this logic might need adjustment if stock is only deducted on checkout.
 		// For now, assuming stock is deducted when adding to cart.
 		cartItem.Quantity += quantity
