@@ -18,43 +18,69 @@ import (
 	"douyin/repository/cache"
 )
 
-// 你的签名密钥
-var jwtSecret = []byte("DouyinSecret")
+// jwtSecret is the secret key for signing JWT tokens. It's initialized by Init().
+var jwtSecret []byte
 
-// Claims 定义 JWT 负载
+// Init sets the JWT secret key. This must be called before generating or parsing tokens.
+func Init(secret string) {
+	if secret == "" {
+		log.Panic("JWT secret cannot be empty")
+	}
+	jwtSecret = []byte(secret)
+	log.Info("JWT Secret initialized successfully.")
+}
+
+// Claims defines the JWT payload for access tokens.
 type Claims struct {
 	UserId   uint   `json:"user_id"`
 	Username string `json:"username"`
 	jwt.StandardClaims
 }
 
-// GenerateToken 创建 access_token, refresh_token 并存到 Redis
-func GenerateToken(userId uint, username string) (string, string, error) {
-	nowTime := time.Now()
-	expireTime := nowTime.Add(consts.AccessTokenExpireDuration)
-	rtExpireTime := nowTime.Add(consts.RefreshTokenExpireDuration)
+// RefreshClaims defines the JWT payload for refresh tokens.
+type RefreshClaims struct {
+	UserId         uint   `json:"user_id"`
+	Username       string `json:"username"`
+	IsRefreshToken bool   `json:"is_refresh_token"`
+	jwt.StandardClaims
+}
 
-	// 构造 claims
+// GenerateToken creates access_token, refresh_token.
+// Access token is stored in Redis for potential revocation.
+func GenerateToken(userId uint, username string) (string, string, error) {
+	if len(jwtSecret) == 0 {
+		log.Error("JWT secret is not initialized. Call jwt.Init() first.")
+		return "", "", errors.New("JWT secret not initialized")
+	}
+	nowTime := time.Now()
+	// Use consts for durations
+	accessTokenExpireTime := nowTime.Add(consts.AccessTokenExpireDuration)
+	refreshTokenExpireTime := nowTime.Add(consts.RefreshTokenExpireDuration)
+
+	// Access Token Claims
 	claims := Claims{
 		UserId:   userId,
 		Username: username,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expireTime.Unix(),
-			Issuer:    "douyin商城",
+			ExpiresAt: accessTokenExpireTime.Unix(),
+			Issuer:    "douyin", // Consistent issuer name
 		},
 	}
-
-	// 生成访问令牌
 	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret)
 	if err != nil {
 		log.Errorf("生成访问令牌失败：%s", err)
 		return "", "", err
 	}
 
-	// 生成刷新令牌
-	refreshClaims := jwt.StandardClaims{
-		ExpiresAt: rtExpireTime.Unix(),
-		Issuer:    "douyin商城",
+	// Refresh Token Claims
+	refreshClaims := RefreshClaims{
+		UserId:         userId,
+		Username:       username, // Include username for convenience if needed upon refresh
+		IsRefreshToken: true,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: refreshTokenExpireTime.Unix(),
+			Issuer:    "douyin", // Consistent issuer name
+		},
 	}
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(jwtSecret)
 	if err != nil {
@@ -62,52 +88,99 @@ func GenerateToken(userId uint, username string) (string, string, error) {
 		return "", "", err
 	}
 
-	// 写 Redis 做吊销判断
-	redisKey := fmt.Sprintf("jwt:%d", userId)
+	// Store access token in Redis for revocation check (optional, but present in original code)
+	// The key "jwt:%d" might be too generic if other JWTs are stored for the user.
+	// Consider a more specific key like "accesstoken_active:%d"
+	redisKey := fmt.Sprintf("jwt_access_token:%d", userId) // More specific key
 	if err := cache.RedisClient.Set(context.Background(), redisKey, accessToken, consts.AccessTokenExpireDuration).Err(); err != nil {
 		log.Errorf("存储访问令牌到 Redis 失败：%s", err)
-		// 看你需求决定要不要 return err
+		// Depending on requirements, this might or might not be a fatal error for token generation
 	}
 
 	return accessToken, refreshToken, nil
 }
 
-// ParseToken 校验 token 签名 + 是否在 Redis 中仍然有效
-func ParseToken(tokenString string) (*Claims, error) {
+// ParseAccessToken validates and parses an access token string.
+// It also checks against Redis if the token is still considered active.
+func ParseAccessToken(tokenString string) (*Claims, error) {
+	if len(jwtSecret) == 0 {
+		log.Error("JWT secret is not initialized during ParseAccessToken. Call jwt.Init() first.")
+		return nil, errors.New("JWT secret not initialized")
+	}
 	tokenClaims, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-		log.Infof("ParseToken 使用的 secret = %s", string(jwtSecret))
 		return jwtSecret, nil
 	})
 
 	if tokenClaims != nil {
 		if claims, ok := tokenClaims.Claims.(*Claims); ok && tokenClaims.Valid {
-			// 校验 Redis 是否还存着
-			redisKey := fmt.Sprintf("jwt:%d", claims.UserId)
-			storedToken, err := cache.RedisClient.Get(context.Background(), redisKey).Result()
-			if err != nil {
-				log.Errorf("从 Redis 获取令牌失败：%s", err)
-				return nil, errors.New("身份验证失败")
+			// Check if token is still active in Redis (if this strategy is kept)
+			redisKey := fmt.Sprintf("jwt_access_token:%d", claims.UserId)
+			storedToken, redisErr := cache.RedisClient.Get(context.Background(), redisKey).Result()
+			if redisErr != nil {
+				log.Errorf("从 Redis 获取访问令牌失败（可能已过期或吊销）：%s", redisErr)
+				return nil, errors.New("令牌无效或已过期") // More generic message to client
 			}
-			// 如果不相等，说明已经被吊销
 			if storedToken != tokenString {
-				log.Errorf("令牌不匹配，可能已被吊销")
-				return nil, errors.New("令牌无效")
+				log.Errorf("访问令牌不匹配 Redis 中存储的令牌，可能已被吊销或更新")
+				return nil, errors.New("令牌已更新或吊销")
 			}
-			// 解析成功
 			return claims, nil
 		}
 	}
-	if err == nil {
-		err = errors.New("解析 Token 失败")
+	// Consolidate error reporting
+	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+				return nil, errors.New("令牌格式错误")
+			} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+				return nil, errors.New("令牌已过期或未生效")
+			} else {
+				return nil, errors.New("无法处理的令牌")
+			}
+		}
+		return nil, fmt.Errorf("解析令牌失败: %w", err)
 	}
-	return nil, err
+	return nil, errors.New("未知令牌解析错误") // Should not happen if err is nil and claims not valid
 }
 
-// 其余 RevokeToken、ParseEmailToken、GenerateEmailToken 等和你原始写法差别不大
+// ParseRefreshToken validates and parses a refresh token string.
+func ParseRefreshToken(tokenString string) (*RefreshClaims, error) {
+	if len(jwtSecret) == 0 {
+		log.Error("JWT secret is not initialized during ParseRefreshToken. Call jwt.Init() first.")
+		return nil, errors.New("JWT secret not initialized")
+	}
+	tokenClaims, err := jwt.ParseWithClaims(tokenString, &RefreshClaims{}, func(t *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+
+	if tokenClaims != nil {
+		if claims, ok := tokenClaims.Claims.(*RefreshClaims); ok && tokenClaims.Valid {
+			if !claims.IsRefreshToken {
+				return nil, errors.New("提供的令牌不是有效的刷新令牌")
+			}
+			return claims, nil
+		}
+	}
+	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+				return nil, errors.New("刷新令牌格式错误")
+			} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+				return nil, errors.New("刷新令牌已过期或未生效")
+			} else {
+				return nil, errors.New("无法处理的刷新令牌")
+			}
+		}
+		return nil, fmt.Errorf("解析刷新令牌失败: %w", err)
+	}
+	return nil, errors.New("未知刷新令牌解析错误")
+}
+
 
 // RevokeToken 吊销用户 Token，将 Redis 中存储的令牌删除
+// This now specifically targets the access token stored in Redis.
 func RevokeToken(userId uint) error {
-	redisKey := fmt.Sprintf("jwt:%d", userId)
+	redisKey := fmt.Sprintf("jwt_access_token:%d", userId) // Match the key used in GenerateToken
 	err := cache.RedisClient.Del(context.Background(), redisKey).Err()
 	if err != nil {
 		log.Errorf("吊销令牌失败：%s", err.Error())

@@ -3,15 +3,15 @@ package types // 定义 types 包，包含所有用户相关数据传输对象
 // UserServiceReq 用户服务请求结构体（例如登录）
 type UserServiceReq struct {
 	NickName string `form:"nick_name" json:"nick_name"` // 用户昵称
-	UserName string `form:"user_name" json:"user_name"` // 用户名（唯一）
-	Password string `form:"password" json:"password"`   // 用户密码
+	UserName string `form:"user_name" json:"user_name" binding:"required,min=3,max=20" validate:"alphanum"` // 用户名（唯一）
+	Password string `form:"password" json:"password" binding:"required,min=8,max=32"`   // 用户密码
 }
 
 type UserRegisterReq struct {
 	NickName string `form:"nickname" json:"nickname"` // 用户昵称
-	UserName string `form:"username" json:"username"` // 用户名
-	Password string `form:"password" json:"password"` // 用户密码
-	Email    string `form:"email" json:"email"`       // 用户邮箱
+	UserName string `form:"username" json:"username" binding:"required,min=3,max=20" validate:"alphanum"` // 用户名
+	Password string `form:"password" json:"password" binding:"required,min=8,max=32"` // 用户密码
+	Email    string `form:"email" json:"email" binding:"required,email"`       // 用户邮箱
 }
 
 // UserTokenData 用户令牌数据结构，登录成功后返回 token 数据
@@ -23,20 +23,20 @@ type UserTokenData struct {
 
 // UserLoginReq 用户登录请求结构体
 type UserLoginReq struct {
-	UserName string `form:"user_name" json:"user_name"` // 用户名
-	Password string `form:"password" json:"password"`   // 用户密码
+	UserName string `form:"user_name" json:"user_name" binding:"required,min=3,max=20" validate:"alphanum"` // 用户名
+	Password string `form:"password" json:"password" binding:"required,min=8,max=32"`   // 用户密码
 }
 
 // UserInfoUpdateReq 用户信息更新请求结构体（更新昵称时使用）
 type UserInfoUpdateReq struct {
-	NickName string `form:"nick_name" json:"nick_name"` // 用户昵称
+	NickName string `form:"nick_name" json:"nick_name" binding:"required,min=1,max=20"` // 用户昵称
 }
 
 // UserUpdateReq 用户更新请求结构体（用于更新用户名和邮箱，仅更新这两个字段以及更新时间）
 type UserUpdateReq struct {
 	UserId   uint   `json:"user_id"`                    // 用户ID（必传，用于标识要更新的用户）
-	UserName string `form:"user_name" json:"user_name"` // 新的用户名
-	Email    string `form:"email" json:"email"`         // 新的邮箱
+	UserName string `form:"user_name" json:"user_name" binding:"omitempty,min=3,max=20" validate:"omitempty,alphanum"` // 新的用户名
+	Email    string `form:"email" json:"email" binding:"omitempty,email"`         // 新的邮箱
 }
 
 // UserInfoShowReq 用户信息展示请求结构体
@@ -57,19 +57,19 @@ type UserIdentityInfo struct {
 
 // UserFollowingReq 用户关注请求结构体
 type UserFollowingReq struct {
-	Id uint `json:"id" form:"id"` // 被关注的用户 ID
+	Id uint `json:"id" form:"id" binding:"required,gt=0"` // 被关注的用户 ID
 }
 
 // UserUnFollowingReq 用户取消关注请求结构体
 type UserUnFollowingReq struct {
-	Id uint `json:"id" form:"id"` // 取消关注的用户 ID
+	Id uint `json:"id" form:"id" binding:"required,gt=0"` // 取消关注的用户 ID
 }
 
 // SendEmailServiceReq 邮件服务请求结构体（如绑定邮箱、修改密码等）
 type SendEmailServiceReq struct {
-	Email         string `form:"email" json:"email"`                   // 用户邮箱
-	Password      string `form:"password" json:"password"`             // 用户密码
-	OperationType uint   `form:"operation_type" json:"operation_type"` // 操作类型
+	Email         string `form:"email" json:"email" binding:"required,email"`                   // 用户邮箱
+	Password      string `form:"password" json:"password" binding:"required_if=OperationType 0,min=8,max=32"`             // 用户密码
+	OperationType uint   `form:"operation_type" json:"operation_type" binding:"required,oneof=0 1 2"` // 操作类型
 }
 
 // ValidEmailServiceReq 邮箱验证请求结构体
@@ -91,16 +91,16 @@ type UserInfoResp struct {
 
 // UserChangePasswordReq 修改密码请求结构体
 type UserChangePasswordReq struct {
-	OldPassword string `form:"old_password" json:"old_password"` // 旧密码
-	NewPassword string `form:"new_password" json:"new_password"` // 新密码
+	OldPassword string `form:"old_password" json:"old_password" binding:"required,min=8,max=32"` // 旧密码
+	NewPassword string `form:"new_password" json:"new_password" binding:"required,min=8,max=32"` // 新密码
 }
 
 // UserChangeNicknameReq 修改昵称请求结构体
 type UserChangeNicknameReq struct {
-	NickName string `form:"nick_name" json:"nick_name"` // 新昵称
+	NickName string `form:"nick_name" json:"nick_name" binding:"required,min=1,max=20"` // 新昵称
 }
 
 // UserSearchReq 用户查询请求结构体
 type UserSearchReq struct {
-	Username string `form:"username" json:"username"` // 查询时使用的用户名字段
+	Username string `form:"username" json:"username" binding:"required,min=1"` // 查询时使用的用户名字段
 }

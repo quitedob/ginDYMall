@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"douyin/repository/db/dao"
 	"douyin/repository/db/model"
 	"gorm.io/gorm"
@@ -19,24 +20,25 @@ func NewCartService(db *gorm.DB) *CartService {
 }
 
 // CreateCart 创建空购物车
-func (s *CartService) CreateCart(userID uint) error {
-	return s.dao.CreateCart(userID)
+func (s *CartService) CreateCart(ctx context.Context, userID uint) error {
+	return s.dao.CreateCart(ctx, userID)
 }
 
 // GetCart 获取用户购物车信息
-func (s *CartService) GetCart(userID uint) ([]model.CartItem, error) {
-	return s.dao.GetCart(userID)
+func (s *CartService) GetCart(ctx context.Context, userID uint) ([]model.CartItem, error) {
+	return s.dao.GetCart(ctx, userID)
 }
 
 // EmptyCart 清空购物车
-func (s *CartService) EmptyCart(userID uint) error {
-	return s.dao.EmptyCart(userID)
+func (s *CartService) EmptyCart(ctx context.Context, userID uint) error {
+	return s.dao.EmptyCart(ctx, userID)
 }
 
 // AddItem 往购物车中添加(或更新)商品
 // 由于本例中只做简单转发给 dao，因此可以在此处加一些
 // 例如商品合法性校验、库存校验等高级逻辑
-func (s *CartService) AddItem(userID, productID uint, quantity int32) error {
+func (s *CartService) AddItem(ctx context.Context, userID, productID uint, quantity int32) error {
 	// 此处可添加业务逻辑，比如先查库存是否足够等...
-	return s.dao.AddItem(userID, productID, quantity)
+	// The DAO layer now handles stock checking and deduction within a transaction.
+	return s.dao.AddItem(ctx, userID, productID, quantity)
 }

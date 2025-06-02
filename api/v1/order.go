@@ -2,8 +2,10 @@
 package v1
 
 import (
+	"douyin/pkg/utils/response"
 	"douyin/service"
 	"douyin/types"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"log"
@@ -49,14 +51,14 @@ func OrderCreateHandler() gin.HandlerFunc {
 		// 检查全局 OrderController 是否已初始化
 		if OrderController == nil {
 			log.Println("OrderController 未正确初始化")
-			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "OrderController 未正确初始化"})
+			_ = ctx.Error(errors.New("OrderController 未正确初始化"))
 			return
 		}
 
 		// 检查 OrderService 是否已初始化
 		if OrderController.service == nil {
 			log.Println("OrderService 未正确初始化")
-			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "OrderService 未正确初始化"})
+			_ = ctx.Error(errors.New("OrderService 未正确初始化"))
 			return
 		}
 
@@ -71,14 +73,14 @@ func OrderUpdateHandler() gin.HandlerFunc {
 		// 检查全局 OrderController 是否已初始化
 		if OrderController == nil {
 			log.Println("OrderController 未正确初始化")
-			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "OrderController 未正确初始化"})
+			_ = ctx.Error(errors.New("OrderController 未正确初始化"))
 			return
 		}
 
 		// 检查 OrderService 是否已初始化
 		if OrderController.service == nil {
 			log.Println("OrderService 未正确初始化")
-			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "OrderService 未正确初始化"})
+			_ = ctx.Error(errors.New("OrderService 未正确初始化"))
 			return
 		}
 
@@ -92,29 +94,29 @@ func (c *OrderControllerType) CreateOrder(ctx *gin.Context) {
 	// 检查服务是否已正确初始化
 	if c.service == nil {
 		log.Println("OrderService 未正确初始化")
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "OrderService 未正确初始化"})
+		_ = ctx.Error(errors.New("OrderService 未正确初始化"))
 		return
 	}
 
 	// 获取 userID，检查是否存在
-	userID, exists := ctx.Get("user_id")
+	userIDAny, exists := ctx.Get("user_id")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "用户未认证"})
+		_ = ctx.Error(errors.New("用户未认证"))
 		return
 	}
 
 	// 确保 userID 是 uint 类型
-	userIDUint, ok := userID.(uint)
+	userIDUint, ok := userIDAny.(uint)
 	if !ok {
-		log.Printf("类型断言失败，userID = %v", userID)
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "无效的用户ID"})
+		log.Printf("类型断言失败，userID = %v", userIDAny)
+		_ = ctx.Error(errors.New("无效的用户ID"))
 		return
 	}
 
 	// 解析请求体
 	var req types.CreateOrderReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
@@ -122,31 +124,42 @@ func (c *OrderControllerType) CreateOrder(ctx *gin.Context) {
 	orderID, err := c.service.CreateOrder(userIDUint, &req)
 	if err != nil {
 		log.Printf("创建订单时出错: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "创建订单时出错"})
+		_ = ctx.Error(err)
 		return
 	}
 
 	// 返回成功响应
-	ctx.JSON(http.StatusOK, gin.H{"order_id": orderID})
+	ctx.JSON(http.StatusOK, response.Success(gin.H{"order_id": orderID}))
 }
 
 // UpdateOrder 调用服务层更新订单
 func (c *OrderControllerType) UpdateOrder(ctx *gin.Context) {
-	userID, _ := ctx.Get("user_id")
+	userIDAny, exists := ctx.Get("user_id")
+	if !exists {
+		_ = ctx.Error(errors.New("用户未认证"))
+		return
+	}
+	userIDUint, ok := userIDAny.(uint)
+	if !ok {
+		log.Printf("类型断言失败，userID = %v", userIDAny)
+		_ = ctx.Error(errors.New("无效的用户ID"))
+		return
+	}
+
 
 	var req types.UpdateOrderReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 将 userID 赋值给请求
-	req.UserID = userID.(uint)
+	req.UserID = userIDUint
 
 	if err := c.service.UpdateOrder(req.UserID, &req); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "更新订单时出错"})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "订单更新成功"})
+	ctx.JSON(http.StatusOK, response.Success("订单更新成功"))
 }

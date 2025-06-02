@@ -5,10 +5,12 @@
 package v1
 
 import (
-	"douyin/pkg/utils/ctl" // 用于获取上下文中的用户信息
-	"douyin/pkg/utils/log" // 日志工具包
-	"douyin/service"       // 业务逻辑层
-	"douyin/types"         // 数据传输对象包
+	"douyin/pkg/utils/ctl"    // 用于获取上下文中的用户信息
+	"douyin/pkg/utils/log"    // 日志工具包
+	"douyin/pkg/utils/response" // 统一响应包
+	"douyin/service"          // 业务逻辑层
+	"douyin/types"            // 数据传输对象包
+	"errors"                  // 标准错误包
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,18 +22,18 @@ func UserRegisterHandler() gin.HandlerFunc {
 		var req types.UserRegisterReq // 注册请求数据结构体
 		if err := ctx.ShouldBind(&req); err != nil {
 			log.LogrusObj.Infoln("绑定注册请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层注册函数
 		resp, err := service.GetUserSrv().UserRegister(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("用户注册失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err) // 将错误传递给错误处理中间件
 			return
 		}
 		log.LogrusObj.Info("注册成功，用户创建成功")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }
 
@@ -41,18 +43,18 @@ func UserLoginHandler() gin.HandlerFunc {
 		var req types.UserLoginReq // 登录请求数据结构体
 		if err := ctx.ShouldBind(&req); err != nil {
 			log.LogrusObj.Infoln("绑定登录请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层登录函数
 		resp, err := service.GetUserSrv().UserLogin(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("用户登录失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("登录成功，生成令牌")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }
 
@@ -62,16 +64,17 @@ func UserLogoutHandler() gin.HandlerFunc {
 		// 从上下文中获取用户信息（依赖鉴权中间件提前解析 Token）
 		_, err := ctl.GetUserInfo(ctx)
 		if err != nil {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
+			// 此处错误通常是 token 无效或未提供
+			_ = ctx.Error(errors.New("请先登录")) // 使用 ctx.Error
 			return
 		}
 		if err := service.GetUserSrv().UserLogout(ctx.Request.Context()); err != nil {
 			log.LogrusObj.Infoln("用户注销失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "注销失败"})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("注销成功")
-		ctx.JSON(http.StatusOK, gin.H{"message": "注销成功"})
+		ctx.JSON(http.StatusOK, response.Success("注销成功"))
 	}
 }
 
@@ -81,18 +84,18 @@ func UserChangePasswordHandler() gin.HandlerFunc {
 		var req types.UserChangePasswordReq // 修改密码请求数据结构体
 		if err := ctx.ShouldBind(&req); err != nil {
 			log.LogrusObj.Infoln("绑定修改密码请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层修改密码函数
 		resp, err := service.GetUserSrv().UserChangePassword(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("修改密码失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("密码修改成功")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }
 
@@ -102,18 +105,18 @@ func UserChangeNicknameHandler() gin.HandlerFunc {
 		var req types.UserChangeNicknameReq // 修改昵称请求数据结构体
 		if err := ctx.ShouldBind(&req); err != nil {
 			log.LogrusObj.Infoln("绑定修改昵称请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层修改昵称函数
 		resp, err := service.GetUserSrv().UserChangeNickname(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("修改昵称失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("昵称修改成功")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }
 
@@ -123,18 +126,18 @@ func UserUpdateHandler() gin.HandlerFunc {
 		var req types.UserUpdateReq // 更新用户请求数据结构体
 		if err := ctx.ShouldBind(&req); err != nil {
 			log.LogrusObj.Infoln("绑定更新用户请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层更新用户信息函数
 		resp, err := service.GetUserSrv().UserUpdate(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("更新用户信息失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("用户更新成功")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }
 
@@ -145,17 +148,17 @@ func UserInfoShowHandler() gin.HandlerFunc {
 		var req types.UserInfoShowReq // 用户信息查询请求数据结构体
 		if err := ctx.ShouldBindQuery(&req); err != nil {
 			log.LogrusObj.Infoln("绑定用户信息查询请求数据失败：", err)
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 			return
 		}
 		// 调用业务层获取用户身份信息函数
 		resp, err := service.GetUserSrv().UserInfoShow(ctx.Request.Context(), &req)
 		if err != nil {
 			log.LogrusObj.Infoln("获取用户身份信息失败：", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			_ = ctx.Error(err)
 			return
 		}
 		log.LogrusObj.Info("用户身份信息获取成功")
-		ctx.JSON(http.StatusOK, gin.H{"data": resp})
+		ctx.JSON(http.StatusOK, response.Success(resp))
 	}
 }

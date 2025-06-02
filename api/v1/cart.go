@@ -1,11 +1,12 @@
 package v1
 
 import (
-	"net/http"
-
 	"douyin/pkg/utils/jwt"
+	"douyin/pkg/utils/response"
 	"douyin/service"
 	"douyin/types"
+	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -28,23 +29,23 @@ func (c *CartController) CreateCart(ctx *gin.Context) {
 	// 验证JWT token
 	_, err := jwt.ValidateJWT(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "未授权"})
+		_ = ctx.Error(errors.New("未授权"))
 		return
 	}
 
 	var req types.CreateCartReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 创建购物车
 	if err := c.service.CreateCart(req.UserID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "创建购物车时出错"})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "购物车创建成功"})
+	ctx.JSON(http.StatusOK, response.Success("购物车创建成功"))
 }
 
 // GetCart 获取购物车信息接口
@@ -52,24 +53,24 @@ func (c *CartController) GetCart(ctx *gin.Context) {
 	// 验证JWT token
 	_, err := jwt.ValidateJWT(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "未授权"})
+		_ = ctx.Error(errors.New("未授权"))
 		return
 	}
 
 	var req types.GetCartReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 获取购物车信息
 	cart, err := c.service.GetCart(req.UserID)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"message": "购物车未找到"})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"cart": cart})
+	ctx.JSON(http.StatusOK, response.Success(cart))
 }
 
 // EmptyCart 清空购物车接口
@@ -77,23 +78,23 @@ func (c *CartController) EmptyCart(ctx *gin.Context) {
 	// 验证JWT token
 	_, err := jwt.ValidateJWT(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "未授权"})
+		_ = ctx.Error(errors.New("未授权"))
 		return
 	}
 
 	var req types.EmptyCartReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 清空购物车
 	if err := c.service.EmptyCart(req.UserID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "清空购物车时出错"})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "购物车已清空"})
+	ctx.JSON(http.StatusOK, response.Success("购物车已清空"))
 }
 
 // AddItem 往购物车中添加(或更新)商品接口
@@ -101,21 +102,21 @@ func (c *CartController) AddItem(ctx *gin.Context) {
 	// 验证JWT token
 	_, err := jwt.ValidateJWT(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "未授权"})
+		_ = ctx.Error(errors.New("未授权"))
 		return
 	}
 
 	var req types.AddItemReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "无效输入"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
 	// 调用service添加或更新
 	if err := c.service.AddItem(req.UserID, req.ProductID, req.Quantity); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "添加商品失败", "error": err.Error()})
+		_ = ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "添加(或更新)商品成功"})
+	ctx.JSON(http.StatusOK, response.Success("添加(或更新)商品成功"))
 }

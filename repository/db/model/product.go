@@ -14,4 +14,6 @@ type Product struct {
 	Description string    `gorm:"column:description"`    // 商品描述
 	Picture     string    `gorm:"column:picture"`        // 商品图片地址
 	Price       float64   `gorm:"column:price;not null"` // 商品价格
+	Stock       int       `gorm:"column:stock"`          // 商品库存
+	Version     int       `gorm:"column:version;default:1"` // 版本号，用于乐观锁
 }
