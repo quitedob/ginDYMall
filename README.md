@@ -8,50 +8,50 @@
 * **模块化设计** 🧱：清晰的项目结构，分为 API 接口层、服务逻辑层、数据访问层。
 * **RESTful API** 🌐：提供标准的 RESTful API 接口。
 * **用户管理** 👤：
-    * 用户注册与登录 [cite: 36, 37]
-    * 用户注销 [cite: 38]
-    * 密码修改 [cite: 39]
-    * 昵称修改 [cite: 40]
-    * 用户信息更新与展示 [cite: 41, 42]
+    * 用户注册与登录
+    * 用户注销 
+    * 密码修改 
+    * 昵称修改 
+    * 用户信息更新与展示 
 * **商品管理** 🛍️：
-    * 商品创建、查询、更新、删除 [cite: 28, 29, 30, 31, 32, 33, 34]
-    * 商品列表查询（支持分页） [cite: 35]
+    * 商品创建、查询、更新、删除 
+    * 商品列表查询（支持分页） 
 * **购物车管理** 🛒：
-    * 创建购物车、获取购物车信息 [cite: 16, 18]
-    * 清空购物车、添加/更新购物车商品 [cite: 19, 20, 21, 22]
+    * 创建购物车、获取购物车信息 
+    * 清空购物车、添加/更新购物车商品 
 * **订单管理** 🧾：
-    * 创建订单、更新订单信息 [cite: 24, 25, 26, 27]
+    * 创建订单、更新订单信息 
 * **结算流程** 💳：
-    * 订单结算功能 [cite: 23]
+    * 订单结算功能
 * **认证与授权** 🔑：
-    * 基于 JWT (JSON Web Tokens) 的用户认证机制 [cite: 81, 83]
-    * Auth 中间件进行接口访问权限控制 [cite: 65]
+    * 基于 JWT (JSON Web Tokens) 的用户认证机制 
+    * Auth 中间件进行接口访问权限控制 
 * **配置管理** ⚙️：
-    * 使用 Viper 进行灵活的配置管理 (`config/config.yaml`) [cite: 54, 55]
+    * 使用 Viper 进行灵活的配置管理 (`config/config.yaml`) 
 * **数据库操作** 🗄️：
-    * 使用 GORM 作为 ORM 框架操作 MySQL 数据库 [cite: 1]
+    * 使用 GORM 作为 ORM 框架操作 MySQL 数据库
 * **缓存机制** ⚡：
-    * 集成 Redis 用于缓存及 JWT 令牌存储 [cite: 45, 82]
+    * 集成 Redis 用于缓存及 JWT 令牌存储 
 * **日志系统** 📝：
-    * 使用 Logrus 进行结构化日志记录 [cite: 90]
+    * 使用 Logrus 进行结构化日志记录 
 * **分布式追踪** 📡：
-    * 集成 Jaeger 和 OpenTracing 实现分布式链路追踪 [cite: 91]
+    * 集成 Jaeger 和 OpenTracing 实现分布式链路追踪 
 * **中间件支持** 🔗：
-    * CORS 跨域处理 [cite: 64]
-    * 统一的响应格式化与错误处理 [cite: 74, 75]
+    * CORS 跨域处理 
+    * 统一的响应格式化与错误处理 
 
 ## 🛠️ 技术栈与主要依赖
 
-* **Go**: 1.18+ [cite: 1]
-* **Gin**: Web 框架 [cite: 1]
-* **GORM**: ORM 框架 [cite: 1]
-* **MySQL**: 关系型数据库 [cite: 1]
-* **Redis**: 缓存数据库 (go-redis/v9) [cite: 1]
-* **JWT-Go**: JSON Web Token 实现 [cite: 1]
-* **Viper**: 配置管理 [cite: 1]
-* **Logrus**: 日志记录 [cite: 1]
-* **Jaeger Client**: 分布式追踪 [cite: 1]
-* **OpenTracing**: 分布式追踪标准接口 [cite: 1]
+* **Go**: 1.18+ 
+* **Gin**: Web 框架 
+* **GORM**: ORM 框架 
+* **MySQL**: 关系型数据库 
+* **Redis**: 缓存数据库 (go-redis/v9) 
+* **JWT-Go**: JSON Web Token 实现 
+* **Viper**: 配置管理 
+* **Logrus**: 日志记录 
+* **Jaeger Client**: 分布式追踪 
+* **OpenTracing**: 分布式追踪标准接口 
 
 ## 🚀 快速开始
 
@@ -59,7 +59,7 @@
 
 确保您的开发环境中已安装以下软件：
 
-* Go (版本 1.18 或更高版本) [cite: 1]
+* Go (版本 1.18 或更高版本) 
 * MySQL 数据库
 * Redis 服务
 
@@ -67,23 +67,23 @@
 
 项目启动前，需要正确配置 `config/config.yaml` 文件。请根据您的实际环境修改以下关键配置项：
 
-* **MySQL 数据库连接信息** [cite: 57]：
+* **MySQL 数据库连接信息**：
     * `mysql.default.dbHost`
     * `mysql.default.dbPort`
     * `mysql.default.dbName` (默认为 `douyin_mall`)
     * `mysql.default.userName`
     * `mysql.default.password`
-* **Redis 连接信息** [cite: 58]：
+* **Redis 连接信息** ：
     * `redis.redisHost`
     * `redis.redisPort`
     * `redis.redisPwd` (如果需要密码)
     * `redis.redisDbName`
 * **JWT 密钥**：
-    * `encryptSecret.jwtSecret` (默认为 `DouyinSecret`) [cite: 62, 63]
+    * `encryptSecret.jwtSecret` (默认为 `DouyinSecret`) 
 * **服务端口**：
-    * `system.HttpPort` (默认为 `:5001`) [cite: 56]
+    * `system.HttpPort` (默认为 `:5001`)
 
-**示例 `config/config.yaml` 结构** [cite: 56, 57, 58, 59]：
+**示例 `config/config.yaml` 结构** ：
 ```yaml
 system:
   HttpPort: ":5001"
@@ -115,13 +115,13 @@ encryptSecret:
 1.  确保您的 MySQL 服务已启动并且可以访问。
 2.  手动创建名为 `douyin_mall` (或其他在 `config.yaml` 中配置的数据库名) 的数据库。
 3.  项目启动时，GORM 会根据定义的模型 (在 `repository/db/model/` 目录下) 自动迁移（创建或更新）数据表。
-    * 用户表 (`users`) [cite: 131]
-    * 商品表 (`products`) [cite: 130]
-    * 订单表 (`orders`) [cite: 124]
-    * 订单项表 (`order_items`) [cite: 128]
-    * 购物车项表 (`cart_items`) [cite: 120]
-    * 支付表 (`payments`) [cite: 122]
-    * 分类表 (`categories`) [cite: 121]
+    * 用户表 (`users`) 
+    * 商品表 (`products`) 
+    * 订单表 (`orders`) 
+    * 订单项表 (`order_items`) 
+    * 购物车项表 (`cart_items`) 
+    * 支付表 (`payments`) 
+    * 分类表 (`categories`)
     * 商品分类关联表 (`product_categories`)
 
 ### 安装依赖
@@ -141,7 +141,7 @@ go mod download
 ```bash
 go run cmd/main.go
 ```
-服务将默认在 `config.yaml` 中 `system.HttpPort` 指定的端口（如 `:5001`）启动 [cite: 43] 。
+服务将默认在 `config.yaml` 中 `system.HttpPort` 指定的端口（如 `:5001`）启动 。
 
 ## 📦 项目构建 (生产环境)
 
@@ -170,7 +170,7 @@ go build -o douyin_server cmd/main.go
 
 ## 📋 API 接口
 
-项目 API 路由定义在 `routes/routes.go` 文件中 [cite: 136, 137] 。主要接口分组如下：
+项目 API 路由定义在 `routes/routes.go` 文件中 。主要接口分组如下：
 
 * `/api/v1/user/`：用户相关接口 (注册、登录、信息修改等)
 * `/api/v1/product/`：商品相关接口
