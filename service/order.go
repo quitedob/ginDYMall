@@ -95,5 +95,5 @@ func (s *OrderService) UpdateOrder(ctx context.Context, userID uint, req *types.
 
 	// If DAO not updated yet:
 	log.Warnf("Calling orderDao.UpdateOrder without context. Consider updating DAO if context propagation is needed.")
-	return s.orderDao.UpdateOrder(userID, req) 
+	return s.orderDao.UpdateOrder(userID, req)
 }

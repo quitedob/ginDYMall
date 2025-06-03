@@ -81,7 +81,7 @@ func (dao *OrderDao) CreateOrder(ctx context.Context, userID uint, req *types.Cr
 		if result.RowsAffected == 0 {
 			return "", errors.New("并发冲突，请重试: " + product.Name)
 		}
-		
+
 		totalAmount += product.Price * float64(item.Quantity) // Assume item.Cost should be product.Price
 
 		orderItem := model.OrderItem{

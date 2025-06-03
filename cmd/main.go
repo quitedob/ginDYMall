@@ -66,14 +66,14 @@ func main() {
 	// router.Use(middleware.Jaeger())      // Tracing first - Assuming Jaeger is initialized elsewhere or not part of this specific step's focus if not present
 	// For now, Jaeger() is commented out if not set up in this context. If it is, uncomment.
 	// If Jaeger is used, ensure InitJaeger is called in main.
-	
+
 	router.Use(middleware.HTTPSRedirectMiddleware()) // Redirect HTTP to HTTPS first (if applicable at app level)
 	// Recovery should be early.
 	// If mylog.LogrusObj.Out can be used as io.Writer for Recovery:
 	// router.Use(gin.RecoveryWithWriter(mylog.LogrusObj.Writer()))
 	// Otherwise, default gin.Recovery() logs to gin.DefaultErrorWriter (stderr).
 	// ErrorHandler middleware should then catch panics if Recovery re-panics or sets an error.
-	router.Use(gin.Recovery()) 
+	router.Use(gin.Recovery())
 	router.Use(middleware.RequestID())   // Add RequestID early
 	router.Use(middleware.LoggerMiddleware()) // Custom Logrus logger
 	router.Use(middleware.Cors())        // CORS policy

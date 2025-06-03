@@ -25,7 +25,7 @@ jobs:
       # If your tests require specific APP_ENV, set it here.
       # For example, to use test-specific database or other services.
       # env:
-      #   APP_ENV: test 
+      #   APP_ENV: test
       #   JWT_SECRET: "TestCISecret" # Example if tests need a JWT secret
       run: go test -v ./... # -v for verbose output, add other flags like -race if needed
 
@@ -39,7 +39,7 @@ jobs:
         # Install golint if not already managed by go.mod or available in the runner
         # Note: golint is deprecated. Consider using staticcheck or golangci-lint for more comprehensive linting.
         # For this example, sticking to the original request of golint.
-        # go get -u golang.org/x/lint/golint 
+        # go get -u golang.org/x/lint/golint
         # go install golang.org/x/lint/golint@latest # This might fail if GOBIN is not set or not in PATH
         # A more reliable way to install a specific version of a tool:
         # GOBIN=$(go env GOPATH)/bin go install golang.org/x/lint/golint@latest
@@ -55,7 +55,7 @@ jobs:
         $(go env GOPATH)/bin/golint -set_exit_status ./... # Use -set_exit_status to make CI fail on lint errors
         # Note: If GOPATH/bin is not in PATH, this direct call is needed.
         # If you add it to path: export PATH=$(go env GOPATH)/bin:$PATH then just `golint -set_exit_status ./...`
-        
+
         # A better alternative for linting is often golangci-lint:
         # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
         # $(go env GOPATH)/bin/golangci-lint run

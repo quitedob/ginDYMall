@@ -28,7 +28,7 @@ func HTTPSRedirectMiddleware() gin.HandlerFunc {
 				isHTTPS = true
 			}
 		}
-		
+
 		// Scheme header can also be checked, though X-Forwarded-Proto is more standard for this.
 		// if !isHTTPS {
 		// 	scheme := c.Request.Header.Get("Scheme") // Less common for this specific purpose
@@ -42,7 +42,7 @@ func HTTPSRedirectMiddleware() gin.HandlerFunc {
 			// Construct the target URL with HTTPS scheme
 			// c.Request.URL.Host is not available, use c.Request.Host which includes hostname:port
 			targetURL := "https://" + c.Request.Host + c.Request.URL.String()
-			
+
 			// Perform a permanent redirect
 			c.Redirect(http.StatusPermanentRedirect, targetURL)
 			c.Abort() // Stop further processing for this request

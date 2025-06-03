@@ -36,7 +36,7 @@ func Cors() gin.HandlerFunc {
 				// or simply not set the header, which is the current behavior if !isAllowed.
 				// If you want to explicitly deny, you might respond with an error, but that's not typical for ACAO.
 			}
-			
+
 			// 允许访问的方法
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
 			// 允许携带的请求头信息

@@ -62,7 +62,7 @@ func RateLimitMiddleware(rdb *redis.Client, prefix string, limit int, window tim
 			// Limit exceeded
 			// Set a Retry-After header if appropriate (value in seconds)
 			// c.Header("Retry-After", strconv.FormatInt(int64(window.Seconds()), 10))
-			
+
 			// Using your standardized response if available
 			// Assuming response.Fail is defined as: func Fail(code int, msg string) APIResponse
 			// And APIResponse struct has Code, Message, Data fields.
