@@ -1,0 +1,7 @@
+{
+    "LoginFailed": "登录失败：用户名或密码无效。",
+    "ProductNotFound": "商品未找到。",
+    "GenericError": "发生未知错误，请稍后重试。",
+    "Welcome": "你好，{name}！",
+    "ItemAddedToCart": "{ItemName} 已添加到您的购物车。"
+}

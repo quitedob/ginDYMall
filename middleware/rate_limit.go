@@ -2,73 +2,73 @@ package middleware
 
 import (
 	"context"
-	"douyin/pkg/utils/response" // Assuming this is your standardized response package
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8" // Using go-redis/redis
+	"github.com/redis/go-redis/v9"
+	"douyin/pkg/utils/response" // Adjust if your response package is different
+	"douyin/mylog"             // Adjust if your log package is different
 )
 
-// RateLimitMiddleware creates a middleware for rate limiting requests.
-func RateLimitMiddleware(rdb *redis.Client, prefix string, limit int, window time.Duration) gin.HandlerFunc {
+// RateLimitMiddleware provides rate limiting functionality based on a key (user ID or IP) and path.
+func RateLimitMiddleware(rdb *redis.Client, prefix string, limit int64, window time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := c.Request.Context() // Use request context for Redis operations
-
-		// Attempt to get user ID from context (set by AuthMiddleware, if applicable)
-		userIDVal, userExists := c.Get("user_id")
-		var keyIdentifier string
-
-		if userExists {
-			// If user is authenticated, use user ID for rate limiting
-			userID, ok := userIDVal.(uint) // Assuming user_id is uint
-			if !ok {
-				// Fallback or error if type assertion fails, though this shouldn't happen if set correctly
-				keyIdentifier = c.ClientIP() // Fallback to IP
-			} else {
-				keyIdentifier = strconv.FormatUint(uint64(userID), 10)
-			}
-		} else {
-			// If user is not authenticated, use client IP
-			keyIdentifier = c.ClientIP()
+		if rdb == nil {
+			// Assuming mylog is initialized and available. If not, use standard log.
+			// For example: log.Printf("Error: Redis client (rdb) is nil...")
+			mylog.Error("Redis client (rdb) is nil in RateLimitMiddleware. Rate limiting disabled for this request.")
+			c.Next() // Allow request if Redis is not configured/available for rate limiting
+			return
 		}
 
-		// Construct the Redis key
-		// Include path to make the rate limit path-specific
-		// You might want to normalize the path or use c.FullPath() if parameters are involved
-		rateLimitKey := fmt.Sprintf("rate_limit:%s:%s:%s", prefix, keyIdentifier, c.FullPath())
+		var key string
+		// Try to get userID from context (assuming it's set by AuthMiddleware as uint)
+		userID, userExists := c.GetUint("userID") // gin.Context has GetUint
 
-		// Use Redis pipeline for atomic INCR and EXPIRE
-		pipe := rdb.Pipeline()
-		countCmd := pipe.Incr(ctx, rateLimitKey)
-		pipe.Expire(ctx, rateLimitKey, window) // Set/update expiration window
-		_, err := pipe.Exec(ctx)
+		if userExists {
+			key = fmt.Sprintf("%s:user:%d:path:%s", prefix, userID, c.FullPath())
+		} else {
+			ip := c.ClientIP()
+			key = fmt.Sprintf("%s:ip:%s:path:%s", prefix, ip, c.FullPath())
+		}
 
+		ctx := context.Background() // Or c.Request.Context() if appropriate for Redis operations
+
+		// INCR command to increment the counter for the key
+		count, err := rdb.Incr(ctx, key).Result()
 		if err != nil {
-			// If Redis fails, decide whether to allow or deny the request.
-			// Allowing might be safer to not block users due to Redis issues.
-			// Log the error.
-			// customlog.LogrusObj.Errorf("Rate limiter Redis error: %v", err)
-			fmt.Printf("Rate limiter Redis error: %v for key %s\n", err, rateLimitKey) // Placeholder log
+			mylog.Errorf("Redis INCR failed for rate limiting key %s: %v", key, err)
+			// Allowing request if Redis fails, to prevent blocking users due to Redis issues.
 			c.Next()
 			return
 		}
 
-		count := countCmd.Val()
+		// If it's the first request for this key in the current window, set expiration
+		if count == 1 {
+			if err := rdb.Expire(ctx, key, window).Err(); err != nil {
+				mylog.Errorf("Redis EXPIRE failed for rate limiting key %s: %v", key, err)
+				// If EXPIRE fails, the key might persist indefinitely. Consider deleting or logging.
+			}
+		}
 
-		if count > int64(limit) {
-			// Limit exceeded
-			// Set a Retry-After header if appropriate (value in seconds)
-			// c.Header("Retry-After", strconv.FormatInt(int64(window.Seconds()), 10))
+		// Check if the count exceeds the limit
+		if count > limit {
+			// Try to get TTL to set Retry-After header more accurately
+			ttl, ttlErr := rdb.TTL(ctx, key).Result()
+			if ttlErr == nil && ttl > 0 {
+				c.Header("Retry-After", strconv.Itoa(int(ttl.Seconds())))
+			} else {
+				// Fallback to window if TTL fails or key has no expiration (should not happen if EXPIRE worked)
+				c.Header("Retry-After", strconv.Itoa(int(window.Seconds())))
+				if ttlErr != nil && ttlErr != redis.Nil { // Log if TTL error is not just "key has no TTL"
+					mylog.Warnf("Redis TTL failed for rate limiting key %s: %v. Using default window for Retry-After.", key, ttlErr)
+				}
+			}
 			
-			// Using your standardized response if available
-			// Assuming response.Fail is defined as: func Fail(code int, msg string) APIResponse
-			// And APIResponse struct has Code, Message, Data fields.
-			// The business code for rate limiting could be specific, e.g., 429 or a custom one.
-			apiResp := response.Fail(http.StatusTooManyRequests, "Too many requests. Please try again later.")
-			c.JSON(http.StatusTooManyRequests, apiResp)
+			response.Fail(c, http.StatusTooManyRequests, "请求过于频繁，请稍后再试 (Too Many Requests, please try again later)")
 			c.Abort()
 			return
 		}

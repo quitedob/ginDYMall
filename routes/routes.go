@@ -1,10 +1,13 @@
 package routes
 
 import (
+	"time" // For rate limiting window
+
 	"github.com/gin-gonic/gin" // 导入 Gin 框架
 	"gorm.io/gorm"             // 导入 GORM 数据库驱动
 
 	"douyin/api/v1"     // 导入 API V1 版本的包，其中包含 CartController 的定义
+	"douyin/cache"      // For cache.Rdb (Redis client)
 	"douyin/middleware" // 导入中间件包（如身份验证中间件）
 )
 
@@ -14,10 +17,21 @@ func NewRouter(engine *gin.Engine, db *gorm.DB) {
 	apiV1 := engine.Group("/api/v1")
 	{
 		// 注册无需登录的接口
-		apiV1.POST("/user/register", v1.UserRegisterHandler()) // 用户注册接口
-		apiV1.POST("/user/login", v1.UserLoginHandler())       // 用户登录接口
-		apiV1.POST("/product/get", v1.GetProduct)              // 获取单个商品接口
-		apiV1.GET("/product/list", v1.ListProducts)            // 获取商品列表接口
+
+		// Apply to register: 2 requests per 10 minutes per IP (more strict for registration)
+		// Assumes cache.Rdb is the initialized *redis.Client
+		apiV1.POST("/user/register",
+			middleware.RateLimitMiddleware(cache.Rdb, "register_ip", 2, 10*time.Minute),
+			v1.UserRegisterHandler(), // 用户注册接口
+		)
+		// Apply to login: 5 requests per minute per user/IP
+		apiV1.POST("/user/login",
+			middleware.RateLimitMiddleware(cache.Rdb, "login", 5, 1*time.Minute),
+			v1.UserLoginHandler(), // 用户登录接口
+		)
+
+		apiV1.POST("/product/get", v1.GetProduct)   // 获取单个商品接口
+		apiV1.GET("/product/list", v1.ListProducts) // 获取商品列表接口
 
 		// 定义需要登录验证的接口分组
 		authGroup := apiV1.Group("")
