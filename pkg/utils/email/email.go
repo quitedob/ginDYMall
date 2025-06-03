@@ -1,59 +1,148 @@
 package email
 
 import (
-	"douyin/config"
-	"gopkg.in/mail.v2"
+	"crypto/tls"
+	"fmt"
+	"net/smtp"
+	"strings"
+
+	"douyin/mylog" // Your logger
 )
 
-// EmailSender 邮件发送器结构体，包含SMTP相关配置信息
-type EmailSender struct {
-	SmtpHost      string `json:"smtp_host"`       // SMTP服务器地址
-	SmtpEmailFrom string `json:"smtp_email_from"` // 发件人邮箱地址
-	SmtpPass      string `json:"smtp_pass"`       // 发件人邮箱密码或授权码
+// ConfigMail holds SMTP server configuration.
+type ConfigMail struct {
+	Host               string `mapstructure:"host" json:"host" yaml:"host"`
+	Port               int    `mapstructure:"port" json:"port" yaml:"port"`
+	Username           string `mapstructure:"username" json:"username" yaml:"username"`
+	Password           string `mapstructure:"password" json:"password" yaml:"password"` // Consider secure handling
+	From               string `mapstructure:"from" json:"from" yaml:"from"`             // Email address
+	UseTLS             bool   `mapstructure:"use_tls" json:"use_tls" yaml:"use_tls"`    // Whether to use STARTTLS (direct TLS, not STARTTLS)
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify" json:"insecure_skip_verify" yaml:"insecure_skip_verify"` // For dev/test with self-signed certs
 }
 
-// NewEmailSender 创建并返回一个新的EmailSender实例，读取配置文件中的邮件相关配置
-// NewEmailSender 创建并返回一个新的 EmailSender 实例，读取配置文件中的邮件相关配置
-func NewEmailSender() *EmailSender {
-	// 确保 GlobalConfig 已经初始化，获取全局配置中的 Email 配置项
-	eConfig := config.GlobalConfig.Email // 从全局配置中访问邮件相关的配置信息
-
-	// 检查配置是否正确加载，如果 eConfig 为 nil 则表示配置未加载成功
-	if eConfig == nil {
-		// 程序直接 panic 并输出错误信息，提醒配置文件中 Email 部分未加载
-		panic("Email 配置未加载")
-	}
-
-	// 返回一个新的 EmailSender 实例，并将配置中的 SMTP 主机、发送邮箱及密码赋值给对应的字段
-	return &EmailSender{
-		SmtpHost:      eConfig.SmtpHost,  // SMTP 主机地址：用于发送邮件时的服务器地址
-		SmtpEmailFrom: eConfig.SmtpEmail, // SMTP 发送邮箱：作为发件人使用的邮箱地址
-		SmtpPass:      eConfig.SmtpPass,  // SMTP 邮箱密码：用于认证的密码或授权码
-	}
+// Client is an email sending client.
+type Client struct {
+	cfg ConfigMail
 }
 
-// Send 发送邮件
-// 参数说明：
-// - data：邮件内容（HTML格式）
-// - emailTo：目标接收者的邮箱地址
-// - subject：邮件主题
-func (s *EmailSender) Send(data, emailTo, subject string) error {
-	// 新建邮件消息对象
-	m := mail.NewMessage()
-	m.SetHeader("From", s.SmtpEmailFrom) // 设置发件人
-	m.SetHeader("To", emailTo)           // 设置收件人
-	m.SetHeader("Subject", subject)      // 设置邮件主题
-	m.SetBody("text/html", data)         // 设置邮件内容（HTML格式）
+// NewClient creates a new email client.
+func NewClient(cfg ConfigMail) *Client {
+	if cfg.Port == 0 {
+		if cfg.UseTLS {
+			cfg.Port = 465 // Default SMTPS port
+		} else {
+			cfg.Port = 587 // Default SMTP submission port (often uses STARTTLS via smtp.SendMail)
+		}
+	}
+	return &Client{cfg: cfg}
+}
 
-	// 创建一个邮件拨号器，端口465为SMTP SSL端口
-	d := mail.NewDialer(s.SmtpHost, 465, s.SmtpEmailFrom, s.SmtpPass)
-	// 强制启用TLS，确保安全传输
-	d.StartTLSPolicy = mail.MandatoryStartTLS
-
-	// 发送邮件，如有错误则返回错误信息
-	if err := d.DialAndSend(m); err != nil {
-		return err
+// Send sends an email.
+// 'body' is expected to be plain text. For HTML, set Content-Type header appropriately in msg.
+func (c *Client) Send(to []string, subject, body string) error {
+	if c.cfg.Host == "" || c.cfg.From == "" {
+		mylog.Error("SMTP host or from address is not configured. Email not sent.")
+		return fmt.Errorf("SMTP host or from address not configured")
 	}
 
+	auth := smtp.PlainAuth("", c.cfg.Username, c.cfg.Password, c.cfg.Host)
+	addr := fmt.Sprintf("%s:%d", c.cfg.Host, c.cfg.Port)
+
+	// Construct the email message
+	// Adding basic headers for compatibility
+	// Ensure CRLF line endings for email headers and body separation
+	header := make(map[string]string)
+	header["From"] = c.cfg.From
+	header["To"] = strings.Join(to, ",")
+	header["Subject"] = subject
+	header["Content-Type"] = "text/plain; charset=UTF-8"
+	// Add MIME-Version and Date for good measure, though often handled by MTAs
+	// header["MIME-Version"] = "1.0"
+	// header["Date"] = time.Now().Format(time.RFC1123Z)
+
+
+	var messageBuilder strings.Builder
+	for k, v := range header {
+		messageBuilder.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	}
+	messageBuilder.WriteString("\r\n") // End of headers
+	messageBuilder.WriteString(body)
+
+	msg := []byte(messageBuilder.String())
+
+	if c.cfg.UseTLS { // This usually means SMTPS (TLS from the start)
+		tlsconfig := &tls.Config{
+			InsecureSkipVerify: c.cfg.InsecureSkipVerify, // Use with caution!
+			ServerName:         c.cfg.Host,
+		}
+
+		// Dial connection
+		conn, err := tls.Dial("tcp", addr, tlsconfig)
+		if err != nil {
+			mylog.Errorf("Failed to dial TLS for email to %v: %v", to, err)
+			return err
+		}
+
+		// Create new SMTP client
+		client, err := smtp.NewClient(conn, c.cfg.Host)
+		if err != nil {
+			mylog.Errorf("Failed to create SMTP client with TLS for email to %v: %v", to, err)
+			conn.Close() // Close connection if NewClient fails
+			return err
+		}
+		defer client.Close()
+
+		// Authenticate
+		if c.cfg.Password != "" { // Only Auth if password is provided
+		    if err = client.Auth(auth); err != nil {
+			    mylog.Errorf("SMTP Auth error with TLS for email to %v: %v", to, err)
+			    return err
+		    }
+        }
+
+		// Set From
+		if err = client.Mail(c.cfg.From); err != nil {
+			mylog.Errorf("SMTP Mail (from) error with TLS for email to %v: %v", to, err)
+			return err
+		}
+		// Set To
+		for _, recipient := range to {
+			if err = client.Rcpt(recipient); err != nil {
+				mylog.Errorf("SMTP Rcpt (to %s) error with TLS for email to %v: %v", recipient, to, err)
+				return err // Return on first recipient error
+			}
+		}
+		// Get Data writer
+		w, err := client.Data()
+		if err != nil {
+			mylog.Errorf("SMTP Data command error with TLS for email to %v: %v", to, err)
+			return err
+		}
+		// Write message
+		_, err = w.Write(msg)
+		if err != nil {
+			mylog.Errorf("Error writing email body with TLS for email to %v: %v", to, err)
+			w.Close() // Close writer on error
+			return err
+		}
+		// Close writer
+		err = w.Close()
+		if err != nil {
+			mylog.Errorf("Error closing data writer with TLS for email to %v: %v", to, err)
+			return err
+		}
+		// Quit
+		client.Quit() // Best effort quit
+
+	} else {
+		// Standard smtp.SendMail (often uses port 25 or 587, might use STARTTLS implicitly if server supports)
+		err := smtp.SendMail(addr, auth, c.cfg.From, to, msg)
+		if err != nil {
+			mylog.Errorf("Failed to send email to %v via SendMail: %v", to, err)
+			return err
+		}
+	}
+
+	mylog.Infof("Email sent to %v, subject: %s", to, subject)
 	return nil
 }

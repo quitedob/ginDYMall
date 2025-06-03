@@ -1,0 +1,7 @@
+{
+    "LoginFailed": "Login failed: Invalid username or password.",
+    "ProductNotFound": "Product not found.",
+    "GenericError": "An unexpected error occurred. Please try again later.",
+    "Welcome": "Hello, {name}!",
+    "ItemAddedToCart": "{ItemName} has been added to your cart."
+}

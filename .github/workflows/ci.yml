@@ -1,0 +1,91 @@
+# File: .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop] # Adjust branches as needed
+  pull_request:
+    branches: [main, master, develop] # Adjust branches as needed
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0 # Or your project's MySQL version
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword # Consistent with DSN in common_dao_test.go
+          MYSQL_DATABASE: douyin_test      # Consistent with DSN in common_dao_test.go
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:6.2 # Or your project's Redis version
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.18' # Match your project's go.mod (or newer compatible)
+
+      - name: Install Dependencies
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Install golangci-lint
+        run: |
+          # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
+          # Using go install for potentially simpler caching and version management by Go itself
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+
+      - name: Run Linter
+        run: |
+          $(go env GOPATH)/bin/golangci-lint run ./... --timeout=5m
+
+      - name: Run Tests
+        env:
+          # DSN for tests running inside CI, connecting to service container
+          MYSQL_TEST_DSN: "root:testpassword@tcp(127.0.0.1:3306)/douyin_test?charset=utf8mb4&parseTime=True&loc=Local"
+          # For Redis client in tests (e.g. cache.InitCache or manual setup)
+          REDIS_ADDR: "127.0.0.1:6379"
+          REDIS_PASSWORD: "" # If your test Redis has no password
+          APP_ENV: "test" # To signal test environment if your app uses it
+          # Add any other ENV VARS your application/tests might need
+          # e.g. JWT_SECRET_KEY_FOR_TEST: "testsecret"
+          # OSS_ENDPOINT_FOR_TEST: "http://localhost:9000" (if using MinIO as a service for OSS tests)
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # Optional: if you use Codecov and have a private repo token
+          file: ./coverage.out
+          flags: unittests # Optional flag
+          # fail_ci_if_error: true # Optional: Make CI fail if Codecov upload fails
+          verbose: true # Optional: For more logs from Codecov action
+
+      # Example Build Step (Optional, if you want to build binary in CI)
+      # - name: Build Application
+      #   run: |
+      #     go build -v -o myapp_linux_amd64 ./cmd/main.go # Adjust path to your main
+      # - name: Upload Build Artifact (Optional)
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: application-binary
+      #     path: myapp_linux_amd64
