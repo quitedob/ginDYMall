@@ -111,3 +111,20 @@ func DeleteProduct(id uint32) error {
 	fmt.Println("商品删除成功！")
 	return nil
 }
+
+// GetProductForUpdate retrieves a product by its ID with a row-level lock for update.
+// It should be used within a transaction.
+func GetProductForUpdate(ctx context.Context, tx *gorm.DB, productID uint) (*model.Product, error) {
+	var product model.Product
+	// Use the passed transaction 'tx'
+	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", productID).First(&product).Error; err != nil {
+		// Log the error appropriately here, e.g., using your project's logger
+		// For now, just print to console for quick debugging, but this should be replaced.
+		fmt.Printf("查询待更新商品失败 (ID: %d): %v\n", productID, err)
+		return nil, err
+	}
+	return &product, nil
+}
+
+// Ensure gorm.io/gorm/clause is imported if not already
+// import "gorm.io/gorm/clause"

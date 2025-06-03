@@ -48,21 +48,11 @@ func NewOrderController(db *gorm.DB) (*OrderControllerType, error) {
 // OrderCreateHandler 创建订单的处理函数
 func OrderCreateHandler() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		// 检查全局 OrderController 是否已初始化
-		if OrderController == nil {
-			log.Println("OrderController 未正确初始化")
-			_ = ctx.Error(errors.New("OrderController 未正确初始化"))
+		if OrderController == nil || OrderController.service == nil {
+			log.Println("OrderController 或 OrderService 未正确初始化")
+			_ = ctx.Error(errors.New("服务内部错误：订单服务未就绪"))
 			return
 		}
-
-		// 检查 OrderService 是否已初始化
-		if OrderController.service == nil {
-			log.Println("OrderService 未正确初始化")
-			_ = ctx.Error(errors.New("OrderService 未正确初始化"))
-			return
-		}
-
-		// 调用 CreateOrder 方法
 		OrderController.CreateOrder(ctx)
 	}
 }
@@ -70,93 +60,67 @@ func OrderCreateHandler() gin.HandlerFunc {
 // OrderUpdateHandler 更新订单的处理函数
 func OrderUpdateHandler() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		// 检查全局 OrderController 是否已初始化
-		if OrderController == nil {
-			log.Println("OrderController 未正确初始化")
-			_ = ctx.Error(errors.New("OrderController 未正确初始化"))
+		if OrderController == nil || OrderController.service == nil {
+			log.Println("OrderController 或 OrderService 未正确初始化")
+			_ = ctx.Error(errors.New("服务内部错误：订单服务未就绪"))
 			return
 		}
-
-		// 检查 OrderService 是否已初始化
-		if OrderController.service == nil {
-			log.Println("OrderService 未正确初始化")
-			_ = ctx.Error(errors.New("OrderService 未正确初始化"))
-			return
-		}
-
-		// 调用 UpdateOrder 方法
 		OrderController.UpdateOrder(ctx)
 	}
 }
 
 // CreateOrder 调用服务层创建订单
 func (c *OrderControllerType) CreateOrder(ctx *gin.Context) {
-	// 检查服务是否已正确初始化
-	if c.service == nil {
-		log.Println("OrderService 未正确初始化")
-		_ = ctx.Error(errors.New("OrderService 未正确初始化"))
-		return
-	}
-
-	// 获取 userID，检查是否存在
-	userIDAny, exists := ctx.Get("user_id")
+	userIDVal, exists := ctx.Get("user_id") // Key "user_id" from AuthMiddleware
 	if !exists {
-		_ = ctx.Error(errors.New("用户未认证"))
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
 		return
 	}
-
-	// 确保 userID 是 uint 类型
-	userIDUint, ok := userIDAny.(uint)
+	userID, ok := userIDVal.(uint)
 	if !ok {
-		log.Printf("类型断言失败，userID = %v", userIDAny)
-		_ = ctx.Error(errors.New("无效的用户ID"))
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
-	// 解析请求体
-	var req types.CreateOrderReq
+	var req types.CreateOrderReq // Use the new types.CreateOrderReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
-	// 调用服务层创建订单
-	orderID, err := c.service.CreateOrder(userIDUint, &req)
+	// 调用服务层创建订单, using the new service signature
+	orderID, err := c.service.CreateOrder(ctx.Request.Context(), userID, req.AddressID, req.Items)
 	if err != nil {
-		log.Printf("创建订单时出错: %v", err)
-		_ = ctx.Error(err)
+		// log.Printf("创建订单时出错: %v", err) // Service/DAO layer should log specifics
+		_ = ctx.Error(err) // Pass to global error handler
 		return
 	}
 
-	// 返回成功响应
 	ctx.JSON(http.StatusOK, response.Success(gin.H{"order_id": orderID}))
 }
 
 // UpdateOrder 调用服务层更新订单
 func (c *OrderControllerType) UpdateOrder(ctx *gin.Context) {
-	userIDAny, exists := ctx.Get("user_id")
+	userIDVal, exists := ctx.Get("user_id")
 	if !exists {
-		_ = ctx.Error(errors.New("用户未认证"))
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
 		return
 	}
-	userIDUint, ok := userIDAny.(uint)
+	userID, ok := userIDVal.(uint)
 	if !ok {
-		log.Printf("类型断言失败，userID = %v", userIDAny)
-		_ = ctx.Error(errors.New("无效的用户ID"))
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
-
-	var req types.UpdateOrderReq
+	var req types.UpdateOrderReq // This request struct still has UserID, but we ignore it.
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
 		return
 	}
 
-	// 将 userID 赋值给请求
-	req.UserID = userIDUint
-
-	if err := c.service.UpdateOrder(req.UserID, &req); err != nil {
+	// UserID from JWT (userID variable) is authoritative, not req.UserID.
+	// The service layer's UpdateOrder should accept userID from context.
+	if err := c.service.UpdateOrder(ctx.Request.Context(), userID, &req); err != nil {
 		_ = ctx.Error(err)
 		return
 	}

@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"fmt"
+	"os"
+	"strings" // Added for strings.NewReplacer
+
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
@@ -122,6 +126,8 @@ type KafkaConfig struct {
 }
 
 // LoadConfig 从指定路径加载配置文件，并反序列化到 Conf 对象中
+// This function might become obsolete if InitConfig handles all loading.
+// Or it can be kept for specific use cases like loading a config file not based on APP_ENV.
 func LoadConfig(path string) (*Conf, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -144,29 +150,57 @@ func InitConfig() error {
 		return fmt.Errorf("获取工作目录失败: %v", err)
 	}
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(workDir + "/config")
-	viper.AddConfigPath(workDir)
+	v := viper.New() // Use a local Viper instance
 
-	if err := viper.ReadInConfig(); err != nil {
-		return fmt.Errorf("读取配置文件失败: %v", err)
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "dev" // Default to 'dev' environment
+	}
+	fmt.Printf("当前运行环境 (APP_ENV): %s\n", env)
+
+	v.SetConfigName("config." + env) // e.g., config.dev, config.prod
+	v.SetConfigType("yaml")
+	v.AddConfigPath(workDir + "/config") // Standard path for config files
+	v.AddConfigPath(workDir)             // Fallback for simpler local setups
+
+	// Allow environment variables to override config file settings
+	v.AutomaticEnv()
+	// Replace dots with underscores for environment variable mapping
+	// e.g., EncryptSecret.JwtSecret becomes ENCRYPTSECRET_JWTSECRET
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if err := v.ReadInConfig(); err != nil {
+		return fmt.Errorf("读取配置文件 '%s' 失败: %w", "config."+env+".yaml", err)
 	}
 
-	if err := viper.Unmarshal(&GlobalConfig); err != nil {
-		return fmt.Errorf("反序列化配置失败: %v", err)
+	if err := v.Unmarshal(&GlobalConfig); err != nil {
+		return fmt.Errorf("反序列化配置失败: %w", err)
 	}
 
-	// Override JWT secret if environment variable is set
-	if envSecret := os.Getenv("JWT_SECRET"); envSecret != "" {
+	// Explicitly override JWT secret if JWT_SECRET environment variable is set
+	// This ensures the specific requirement from the issue is met,
+	// even though AutomaticEnv + SetEnvKeyReplacer might also handle it
+	// if the struct tags are `mapstructure:"jwtSecret"` and env var is `ENCRYPTSECRET_JWTSECRET`.
+	// The current struct tag is `yaml:"jwtSecret"`.
+	// For robust override, check explicitly.
+	if envJwtSecret := os.Getenv("JWT_SECRET"); envJwtSecret != "" {
 		if GlobalConfig.EncryptSecret == nil {
-			GlobalConfig.EncryptSecret = &EncryptSecret{} // Ensure EncryptSecret is not nil
+			GlobalConfig.EncryptSecret = &EncryptSecret{} // Ensure EncryptSecret struct is initialized
 		}
-		GlobalConfig.EncryptSecret.JwtSecret = envSecret
-		fmt.Println("JWT Secret overridden by environment variable.")
+		GlobalConfig.EncryptSecret.JwtSecret = envJwtSecret
+		fmt.Println("JWT Secret overridden by JWT_SECRET environment variable.")
+	} else {
+		// Check if AutomaticEnv picked up a structured env var like ENCRYPTSECRET_JWTSECRET
+		// This part is tricky because viper's AutomaticEnv is case-insensitive for keys but case-sensitive for values from env.
+		// The SetEnvKeyReplacer helps map `EncryptSecret.JwtSecret` to `ENCRYPTSECRET_JWTSECRET`.
+		// If `GlobalConfig.EncryptSecret.JwtSecret` is already correctly populated by viper.Unmarshal
+		// (after considering env vars due to AutomaticEnv), this specific os.Getenv("JWT_SECRET") might be redundant
+		// or could be a fallback if the structured one isn't set.
+		// For now, the explicit os.Getenv("JWT_SECRET") takes precedence as per the issue.
 	}
 
-	fmt.Println("配置文件加载成功！")
+
+	fmt.Printf("配置文件 '%s' 加载成功！\n", "config."+env+".yaml")
 	return nil
 }
 

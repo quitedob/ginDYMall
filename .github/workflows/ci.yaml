@@ -1,0 +1,103 @@
+name: Go CI
+
+on:
+  push:
+    branches: [ main, master, develop ] # Adjust if your main/development branches are different
+  pull_request:
+    branches: [ main, master, develop ] # Adjust if your main/development branches are different
+
+jobs:
+  build-and-test: # Renamed job for clarity
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4 # Updated to v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5 # Updated to v5
+      with:
+        go-version: '1.18' # Match Go version in Dockerfile and project
+
+    - name: Install dependencies
+      run: go mod tidy && go mod download
+
+    - name: Run tests
+      # If your tests require specific APP_ENV, set it here.
+      # For example, to use test-specific database or other services.
+      # env:
+      #   APP_ENV: test 
+      #   JWT_SECRET: "TestCISecret" # Example if tests need a JWT secret
+      run: go test -v ./... # -v for verbose output, add other flags like -race if needed
+
+    - name: Build application
+      # This build is for CI verification, the Dockerfile handles the final release build.
+      # Output to a build directory to avoid polluting the root.
+      run: go build -v -o build/ginDYMall cmd/main.go # -v for verbose output
+
+    - name: Lint code
+      run: |
+        # Install golint if not already managed by go.mod or available in the runner
+        # Note: golint is deprecated. Consider using staticcheck or golangci-lint for more comprehensive linting.
+        # For this example, sticking to the original request of golint.
+        # go get -u golang.org/x/lint/golint 
+        # go install golang.org/x/lint/golint@latest # This might fail if GOBIN is not set or not in PATH
+        # A more reliable way to install a specific version of a tool:
+        # GOBIN=$(go env GOPATH)/bin go install golang.org/x/lint/golint@latest
+        # Ensure $(go env GOPATH)/bin is in your PATH
+        # For simplicity in CI, if golint is frequently used, consider a Docker image with Go tools pre-installed
+        # or use a setup action for linters.
+        # If `go install` is used, the binary goes to $GOPATH/bin or $GOBIN.
+        # The following assumes golint is in the PATH.
+        # Check if it exists first, install if not. This is a bit complex for a simple run step.
+        # Simpler: rely on it being installed or use a linter that's easier to invoke.
+        # For now, let's assume it might need installation:
+        go install golang.org/x/lint/golint@latest
+        $(go env GOPATH)/bin/golint -set_exit_status ./... # Use -set_exit_status to make CI fail on lint errors
+        # Note: If GOPATH/bin is not in PATH, this direct call is needed.
+        # If you add it to path: export PATH=$(go env GOPATH)/bin:$PATH then just `golint -set_exit_status ./...`
+        
+        # A better alternative for linting is often golangci-lint:
+        # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
+        # $(go env GOPATH)/bin/golangci-lint run
+      # Due to golint deprecation and potential install issues in CI,
+      # the user might prefer to switch to `golangci-lint` or just `go vet ./...` for simplicity.
+      # For now, I've included the golint install and run as requested.
+      # It's common to have a Makefile target for linting that handles tool installation.
+      # e.g., `make lint`
+      # If `make lint` exists, the run step could just be `make lint`.
+      # If `go vet` is sufficient:
+      # run: go vet ./...
+
+# Optional: Docker build job (if you want to build and push Docker images from CI)
+#  docker-build:
+#    runs-on: ubuntu-latest
+#    needs: build-and-test # Run after tests pass
+#    if: github.ref == 'refs/heads/main' # Only build Docker image for main branch pushes
+#    steps:
+#    - name: Checkout code
+#      uses: actions/checkout@v4
+#
+#    - name: Set up QEMU
+#      uses: docker/setup-qemu-action@v3
+#
+#    - name: Set up Docker Buildx
+#      uses: docker/setup-buildx-action@v3
+#
+#    - name: Login to DockerHub (or other registry)
+#      uses: docker/login-action@v3
+#      with:
+#        username: ${{ secrets.DOCKERHUB_USERNAME }}
+#        password: ${{ secrets.DOCKERHUB_TOKEN }}
+#
+#    - name: Build and push Docker image
+#      uses: docker/build-push-action@v5
+#      with:
+#        context: .
+#        push: true
+#        tags: yourdockerhubusername/gindymall:latest # Replace with your Docker Hub username/repo
+#        # platforms: linux/amd64,linux/arm64 # For multi-arch builds
+#        # cache-from: type=registry,ref=yourdockerhubusername/gindymall:buildcache
+#        # cache-to: type=registry,ref=yourdockerhubusername/gindymall:buildcache,mode=max
+#        build-args: | # Example if build args are needed
+#          APP_VERSION=${{ github.sha }}
+```

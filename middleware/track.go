@@ -6,6 +6,7 @@ import (
 
 	"douyin/consts"
 	"douyin/pkg/utils/track"
+	"github.com/opentracing/opentracing-go/ext" // Added for opentracing ext tags
 )
 
 // Jaeger 中间件：用于集成 Jaeger 分布式追踪
@@ -20,6 +21,8 @@ func Jaeger() gin.HandlerFunc {
 			span, err = track.GetParentSpan(c.FullPath(), traceId, c.Request.Header)
 			if err != nil {
 				// 输出中文错误提示到控制台，并返回
+				// Consider using c.Error() and letting the ErrorHandler middleware handle the response
+				// For now, keeping original behavior for this specific error path.
 				c.String(500, "获取父追踪失败：%s", err.Error())
 				return
 			}
@@ -29,6 +32,14 @@ func Jaeger() gin.HandlerFunc {
 		}
 		// 在处理结束后关闭span
 		defer span.Finish()
+
+		// Set standard OpenTracing tags
+		ext.HTTPMethod.Set(span, c.Request.Method)
+		ext.HTTPUrl.Set(span, c.Request.RequestURI) // Using RequestURI for full path + query
+		ext.Component.Set(span, "gin-http-server")
+		// Optionally, set client IP
+		// ext.PeerHostIPv4.SetString(span, c.ClientIP())
+
 
 		// 将span存入上下文，便于后续使用
 		c.Set(consts.SpanCTX, opentracing.ContextWithSpan(c, span))

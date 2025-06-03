@@ -16,8 +16,27 @@ func Cors() gin.HandlerFunc {
 
 		// 如果存在 Origin，则允许跨域访问
 		if origin != "" {
-			// 允许所有域名访问，可根据需求限制具体域名
-			c.Header("Access-Control-Allow-Origin", "*")
+			// TODO: Make this list of allowed origins configurable
+			allowedOrigins := []string{"https://production.example.com", "http://localhost:3000", "http://127.0.0.1:3000"} // Example origins
+			isAllowed := false
+			for _, allowed := range allowedOrigins {
+				if origin == allowed {
+					isAllowed = true
+					break
+				}
+			}
+
+			if isAllowed {
+				c.Header("Access-Control-Allow-Origin", origin)
+			} else {
+				// Optionally, log the blocked origin or handle it specifically.
+				// For now, if not allowed, the ACAO header will not be set for this origin,
+				// and the browser will block the cross-origin request.
+				// Alternatively, to be more explicit, you could set a default allowed origin if one exists,
+				// or simply not set the header, which is the current behavior if !isAllowed.
+				// If you want to explicitly deny, you might respond with an error, but that's not typical for ACAO.
+			}
+			
 			// 允许访问的方法
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
 			// 允许携带的请求头信息

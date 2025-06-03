@@ -3,22 +3,15 @@ package types
 
 // CreateOrderReq 创建订单请求参数
 type CreateOrderReq struct {
-	UserCurrency  string         `json:"user_currency" binding:"required"`  // 用户货币
-	Email         string         `json:"email" binding:"required"`          // 用户邮箱
-	FirstName     string         `json:"first_name" binding:"required"`     // 名
-	LastName      string         `json:"last_name" binding:"required"`      // 姓
-	StreetAddress string         `json:"street_address" binding:"required"` // 街道地址
-	City          string         `json:"city" binding:"required"`           // 城市
-	State         string         `json:"state" binding:"required"`          // 省/州
-	Country       string         `json:"country" binding:"required"`        // 国家
-	ZipCode       string         `json:"zip_code" binding:"required"`       // 邮政编码
-	OrderItems    []OrderItemReq `json:"order_items" binding:"required"`    // 订单项
+	Items     []OrderItemReq `json:"items" binding:"required,dive"`      // dive validates each item in slice
+	AddressID uint           `json:"address_id" binding:"required,gt=0"` // Assuming AddressID is for shipping
+	// UserCurrency, Email, FirstName, etc. might be associated with AddressID or fetched for the user
 }
 
 // OrderItemReq 订单项请求参数
 type OrderItemReq struct {
-	ProductID uint  `json:"product_id" binding:"required"` // 商品ID
-	Quantity  int32 `json:"quantity" binding:"required"`   // 商品数量
+	ProductID uint `json:"product_id" binding:"required,gt=0"`
+	Quantity  int  `json:"quantity" binding:"required,gt=0,lte=100"`
 }
 
 // UpdateOrderReq 修改订单请求参数
