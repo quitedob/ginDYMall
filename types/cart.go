@@ -1,23 +1,23 @@
 package types
 
-// CreateCartReq 创建购物车请求参数
+// CreateCartReq 创建购物车请求参数 (UserID will be from JWT)
 type CreateCartReq struct {
-	UserID uint `json:"user_id" binding:"required"` // 用户ID
+	// UserID is removed, will be extracted from JWT claims in handler
 }
 
-// GetCartReq 获取购物车请求参数
+// GetCartReq 获取购物车请求参数 (UserID will be from JWT)
 type GetCartReq struct {
-	UserID uint `json:"user_id" binding:"required"` // 用户ID
+	// UserID is removed, will be extracted from JWT claims in handler
 }
 
-// EmptyCartReq 清空购物车请求参数
+// EmptyCartReq 清空购物车请求参数 (UserID will be from JWT)
 type EmptyCartReq struct {
-	UserID uint `json:"user_id" binding:"required"` // 用户ID
+	// UserID is removed, will be extracted from JWT claims in handler
 }
 
 // AddItemReq 添加商品到购物车请求参数
 type AddItemReq struct {
-	UserID    uint  `json:"user_id" binding:"required"`    // 用户ID
-	ProductID uint  `json:"product_id" binding:"required"` // 商品ID
-	Quantity  int32 `json:"quantity" binding:"required"`   // 要添加的数量（可为正数）
+	// UserID is removed, will be extracted from JWT claims in handler
+	ProductID uint `json:"product_id" binding:"required,gt=0"`
+	Quantity  int  `json:"quantity" binding:"required,gt=0,lte=100"` // Max 100 per add
 }

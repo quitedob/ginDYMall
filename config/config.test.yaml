@@ -1,0 +1,48 @@
+# 系统配置部分
+system:
+  domain: mall-test          # 项目域名
+  version: 1.0             # 项目版本
+  env: "test"              # 当前运行环境（测试环境）
+  HttpPort: ":5002"        # HTTP 服务监听端口 (test)
+  Host: "localhost"        # 主机地址
+  UploadModel: "local"     # 上传模式，本地或云存储
+
+# MySQL 数据库配置部分
+mysql:
+  default:
+    dialect: "mysql"       # 数据库类型
+    dbHost: "127.0.0.1"      # 数据库服务器地址
+    dbPort: "3306"         # 数据库端口
+    dbName: "douyin_mall_test"  # 数据库名称 (test)
+    userName: "root"       # 数据库用户名
+    password: "1234"      # 数据库密码
+    charset: "utf8mb4"     # 数据库字符集
+
+# Redis 配置部分（用于缓存和存储 JWT 令牌）
+redis:
+  redisHost: "127.0.0.1"     # Redis 服务器地址
+  redisPort: "6379"          # Redis 服务器端口
+  redisUsername: ""          # Redis 用户名（无则留空）
+  redisPwd: ""               # Redis 密码（无则留空）
+  redisDbName: 1             # Redis 数据库编号 (test)
+  redisNetwork: "tcp"        # 网络协议
+
+# 缓存配置部分
+cache:
+  cacheType: redis         # 缓存类型（此处使用 Redis）
+  cacheEmpires: 300        # 缓存过期时间（单位：秒） (test)
+  cacheWarmUp:             # 缓存预热（可选）
+  cacheServer:             # 缓存服务器地址（可选）
+
+# 加密密钥配置部分
+encryptSecret:
+  jwtSecret: "DouyinTestSecret" # JWT 认证密钥 (test)
+  emailSecret: "EmailSecretTest"    # 邮件加密密钥 (test)
+  phoneSecret: "PhoneSecretTest"    # 电话加密密钥 (test)
+
+# 邮件配置部分
+email:
+  validEmail: "test@example.com" # 有效邮箱
+  smtpHost: "http://smtp.test.example.com" # SMTP 主机地址
+  smtpEmail: "test@example.com"     # SMTP 发送邮箱
+  smtpPass: "test-smtp-password"          # SMTP 邮箱密码

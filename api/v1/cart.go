@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"douyin/pkg/utils/jwt"
+	// "douyin/pkg/utils/jwt" // JWT validation is now part of AuthMiddleware
 	"douyin/pkg/utils/response"
 	"douyin/service"
 	"douyin/types"
@@ -26,21 +26,22 @@ func NewCartController(db *gorm.DB) *CartController {
 
 // CreateCart 创建购物车接口
 func (c *CartController) CreateCart(ctx *gin.Context) {
-	// 验证JWT token
-	_, err := jwt.ValidateJWT(ctx)
-	if err != nil {
-		_ = ctx.Error(errors.New("未授权"))
+	userIDVal, exists := ctx.Get("user_id") // Key "user_id" from AuthMiddleware
+	if !exists {
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
+		return
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
-	var req types.CreateCartReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
-		return
-	}
+	// var req types.CreateCartReq // No fields in CreateCartReq anymore
+	// if err := ctx.ShouldBindJSON(&req); err != nil { ... } // Not needed if req is empty
 
 	// 创建购物车
-	if err := c.service.CreateCart(req.UserID); err != nil {
+	if err := c.service.CreateCart(ctx.Request.Context(), userID); err != nil {
 		_ = ctx.Error(err)
 		return
 	}
@@ -50,21 +51,22 @@ func (c *CartController) CreateCart(ctx *gin.Context) {
 
 // GetCart 获取购物车信息接口
 func (c *CartController) GetCart(ctx *gin.Context) {
-	// 验证JWT token
-	_, err := jwt.ValidateJWT(ctx)
-	if err != nil {
-		_ = ctx.Error(errors.New("未授权"))
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
+		return
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
-	var req types.GetCartReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
-		return
-	}
+	// var req types.GetCartReq // No fields
+	// if err := ctx.ShouldBindJSON(&req); err != nil { ... }
 
 	// 获取购物车信息
-	cart, err := c.service.GetCart(req.UserID)
+	cart, err := c.service.GetCart(ctx.Request.Context(), userID)
 	if err != nil {
 		_ = ctx.Error(err)
 		return
@@ -75,21 +77,22 @@ func (c *CartController) GetCart(ctx *gin.Context) {
 
 // EmptyCart 清空购物车接口
 func (c *CartController) EmptyCart(ctx *gin.Context) {
-	// 验证JWT token
-	_, err := jwt.ValidateJWT(ctx)
-	if err != nil {
-		_ = ctx.Error(errors.New("未授权"))
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
+		return
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
-	var req types.EmptyCartReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, response.Fail(1001, "参数非法："+err.Error()))
-		return
-	}
+	// var req types.EmptyCartReq // No fields
+	// if err := ctx.ShouldBindJSON(&req); err != nil { ... }
 
 	// 清空购物车
-	if err := c.service.EmptyCart(req.UserID); err != nil {
+	if err := c.service.EmptyCart(ctx.Request.Context(), userID); err != nil {
 		_ = ctx.Error(err)
 		return
 	}
@@ -99,10 +102,14 @@ func (c *CartController) EmptyCart(ctx *gin.Context) {
 
 // AddItem 往购物车中添加(或更新)商品接口
 func (c *CartController) AddItem(ctx *gin.Context) {
-	// 验证JWT token
-	_, err := jwt.ValidateJWT(ctx)
-	if err != nil {
-		_ = ctx.Error(errors.New("未授权"))
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		_ = ctx.Error(errors.New("用户未授权或user_id未在context中设置"))
+		return
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		_ = ctx.Error(errors.New("user_id在context中的类型错误"))
 		return
 	}
 
@@ -113,7 +120,7 @@ func (c *CartController) AddItem(ctx *gin.Context) {
 	}
 
 	// 调用service添加或更新
-	if err := c.service.AddItem(req.UserID, req.ProductID, req.Quantity); err != nil {
+	if err := c.service.AddItem(ctx.Request.Context(), userID, req.ProductID, int32(req.Quantity)); err != nil {
 		_ = ctx.Error(err)
 		return
 	}

@@ -21,16 +21,19 @@ func NewCartService(db *gorm.DB) *CartService {
 
 // CreateCart 创建空购物车
 func (s *CartService) CreateCart(ctx context.Context, userID uint) error {
+	// UserID is now passed directly
 	return s.dao.CreateCart(ctx, userID)
 }
 
 // GetCart 获取用户购物车信息
 func (s *CartService) GetCart(ctx context.Context, userID uint) ([]model.CartItem, error) {
+	// UserID is now passed directly
 	return s.dao.GetCart(ctx, userID)
 }
 
 // EmptyCart 清空购物车
 func (s *CartService) EmptyCart(ctx context.Context, userID uint) error {
+	// UserID is now passed directly
 	return s.dao.EmptyCart(ctx, userID)
 }
 

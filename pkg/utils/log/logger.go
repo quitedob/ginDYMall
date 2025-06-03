@@ -3,72 +3,105 @@ package log
 
 import (
 	"fmt"
+	"io" // Needed for io.Discard
 	"os"
 	"path"
 	"time"
 
+	"github.com/gin-gonic/gin" // Used for gin.DefaultErrorWriter if needed as fallback
+	"github.com/lestrrat-go/file-rotatelogs"
+	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 )
 
 // LogrusObj 全局日志对象
-var LogrusObj *logrus.Logger
+var LogrusObj *logrus.Logger // Or simply: var Log *logrus.Logger
 
-// setOutputFile 设置日志文件输出，返回日志文件的 os.File 对象
-func setOutputFile() (*os.File, error) {
-	now := time.Now()
-	var logFilePath string
-	// 获取当前工作目录，构造日志目录路径
-	if dir, err := os.Getwd(); err == nil {
-		logFilePath = dir + "/logs/"
+// InitLogger 初始化日志
+func InitLogger() {
+	if LogrusObj != nil {
+		// Already initialized
+		return
 	}
-	// 检查日志目录是否存在，不存在则创建
+
+	LogrusObj = logrus.New()
+	LogrusObj.SetLevel(logrus.DebugLevel) // Set appropriate log level from config eventually
+
+	// Set JSON Formatter
+	LogrusObj.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339, // e.g., "2006-01-02T15:04:05Z07:00"
+		// FieldMap: logrus.FieldMap{ // Optional: customize field names
+		// 	logrus.FieldKeyTime:  "timestamp",
+		// 	logrus.FieldKeyLevel: "level",
+		// 	logrus.FieldKeyMsg:   "message",
+		// 	logrus.FieldKeyFunc:  "caller", // Requires LogrusObj.SetReportCaller(true)
+		// },
+	})
+	// LogrusObj.SetReportCaller(true) // Uncomment if you want to log filename and line number
+
+	// Configure file-rotatelogs
+	logFilePath := "logs" // Base directory for logs
+	logFileName := "app.log"
+	logFile := path.Join(logFilePath, logFileName)
+
+	// Ensure logs directory exists
 	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
-		if err := os.MkdirAll(logFilePath, 0777); err != nil {
-			fmt.Println("创建日志目录失败：" + err.Error())
-			return nil, err
+		if errMkdir := os.MkdirAll(logFilePath, 0755); errMkdir != nil {
+			fmt.Fprintf(gin.DefaultErrorWriter, "创建日志目录失败：%s\n", errMkdir.Error())
+			// Fallback to stdout if directory creation fails
+			LogrusObj.SetOutput(os.Stdout)
+			return
 		}
 	}
-	// 构造日志文件名称，如 "2025-02-21.log"
-	logFileName := now.Format("2006-01-02") + ".log"
-	fileName := path.Join(logFilePath, logFileName)
-	// 检查日志文件是否存在，不存在则创建
-	if _, err := os.Stat(fileName); err != nil {
-		if _, err := os.Create(fileName); err != nil {
-			fmt.Println("创建日志文件失败：" + err.Error())
-			return nil, err
-		}
-	}
-	// 打开日志文件，追加写入
-	src, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+
+	writer, err := rotatelogs.New(
+		logFile+".%Y%m%d",                 // Rotated file name pattern
+		rotatelogs.WithLinkName(logFile),          // Link to current log file
+		rotatelogs.WithMaxAge(7*24*time.Hour),     // Max age of 7 days
+		rotatelogs.WithRotationTime(24*time.Hour), // Rotate daily
+		// rotatelogs.WithRotationSize(100*1024*1024), // Optional: Rotate by size
+	)
 	if err != nil {
-		fmt.Println("打开日志文件失败：" + err.Error())
-		return nil, err
+		fmt.Fprintf(gin.DefaultErrorWriter, "初始化 rotatelogs 失败：%s\n", err.Error())
+		// Fallback to stdout if rotatelogs setup fails
+		LogrusObj.SetOutput(os.Stdout)
+		return
 	}
-	return src, nil
+
+	// Create a new LFS hook
+	hook := lfshook.NewHook(
+		lfshook.WriterMap{ // Log all levels to the rotatelogs writer
+			logrus.TraceLevel: writer,
+			logrus.DebugLevel: writer,
+			logrus.InfoLevel:  writer,
+			logrus.WarnLevel:  writer,
+			logrus.ErrorLevel: writer,
+			logrus.FatalLevel: writer,
+			logrus.PanicLevel: writer,
+		},
+		&logrus.JSONFormatter{TimestampFormat: time.RFC3339}, // Ensure hook uses the same formatter
+	)
+	LogrusObj.AddHook(hook)
+
+	// Discard default Logrus output (os.Stderr), rely entirely on the hook for file logging.
+	// If console output is also desired for development, you can add another hook
+	// or set LogrusObj.SetOutput(io.MultiWriter(os.Stdout, writer_from_hook_or_another_rotatelog))
+	// but that makes the hook for specific levels to 'writer' a bit redundant if 'writer' is also default.
+	// For dedicated file logging via hook, and potentially a separate console hook if needed:
+	LogrusObj.SetOutput(io.Discard)
+
+	// Use fmt.Println for initial messages that should go to console regardless of log setup
+	fmt.Println("Logrus 日志系统初始化成功，使用 JSON 格式和每日轮转。日志文件位于:", logFile)
 }
 
-// InitLog 初始化日志
-func InitLog() {
-	if LogrusObj == nil {
-		LogrusObj = logrus.New()
-		LogrusObj.SetLevel(logrus.DebugLevel)         // 设置日志级别
-		LogrusObj.SetFormatter(&logrus.TextFormatter{ // 设置文本格式
-			FullTimestamp: true,
-		})
-		// 添加文件输出逻辑（兼容第一版）
-		if file, err := setOutputFile(); err == nil {
-			LogrusObj.Out = file
-		} else {
-			// 如果文件设置失败，则默认输出到标准输出
-			fmt.Println("使用默认标准输出，文件输出初始化失败：", err)
-		}
-	}
-}
+// Helper functions - should not call InitLogger themselves.
+// Assume LogrusObj is initialized at startup.
 
 // Info 输出信息级别的日志
 func Info(message string) {
 	if LogrusObj == nil {
-		InitLog()
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Info 失败。消息: %s\n", message)
+		return
 	}
 	LogrusObj.Info(message)
 }
@@ -76,7 +109,8 @@ func Info(message string) {
 // Errorf 输出格式化的错误日志
 func Errorf(format string, args ...interface{}) {
 	if LogrusObj == nil {
-		InitLog()
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Errorf 失败。格式: %s, 参数: %v\n", format, args)
+		return
 	}
 	LogrusObj.Errorf(format, args...)
 }
@@ -84,7 +118,37 @@ func Errorf(format string, args ...interface{}) {
 // Infof 输出格式化的信息日志
 func Infof(format string, args ...interface{}) {
 	if LogrusObj == nil {
-		InitLog()
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Infof 失败。格式: %s, 参数: %v\n", format, args)
+		return
 	}
 	LogrusObj.Infof(format, args...)
+}
+
+// Warnf outputs a formatted warning log
+func Warnf(format string, args ...interface{}) {
+	if LogrusObj == nil {
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Warnf 失败。格式: %s, 参数: %v\n", format, args)
+		return
+	}
+	LogrusObj.Warnf(format, args...)
+}
+
+// Debugf outputs a formatted debug log
+func Debugf(format string, args ...interface{}) {
+	if LogrusObj == nil {
+		// This might be too noisy for production if logger isn't init, but useful for dev.
+		// Consider removing if it becomes spammy.
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Debugf 失败。格式: %s, 参数: %v\n", format, args)
+		return
+	}
+	LogrusObj.Debugf(format, args...)
+}
+
+// Panic logs a message at panic level and then panics.
+func Panic(message string) {
+	if LogrusObj == nil {
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: LogrusObj 未初始化，调用 Panic 失败。消息: %s\n", message)
+		panic(message) // Still panic
+	}
+	LogrusObj.Panic(message)
 }
